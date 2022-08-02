@@ -1,0 +1,16 @@
+{% extends "miniblogapp/base.html" %}
+{% block title %}<title>Index</title>{% endblock %}
+{% block content %}
+    <h1>Mini Blog Home</h1>
+    <p>Welcome to MiniBlog, a website developed by <em>Mozilla Developer Network</em>!</p>
+    <h2>Dynamic content</h2>
+    {% if index_list %}
+    <ul>
+    {% for post in index_list %}
+        <li><a href="{{ post.get_absolute_url }}">{{ post.title }}</a></li>
+    {% endfor %}
+    </ul>
+        {% else %}
+        <p>No post available.</p>
+    {% endif %}
+{% endblock %}

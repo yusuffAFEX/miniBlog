@@ -1,0 +1,32 @@
+{% extends "miniblogapp/base.html" %}
+{% block title %}<title>Index</title>{% endblock %}
+{% block content %}
+    <h1>Title: {{ post.title }}</h1>
+    <p>{{ post.date_created }}</p>
+     <img src="{{ post.image.url }}" alt="post-image" >
+    <p><h5>Author:</h5> <a href="{% url 'author-detail' post.author.id %}">{{ post.author.get_full_name }}</a></p>
+    <p><h3>Content:</h3> {{ post.content|linebreaks }} </p>
+    <hr>
+    <h1>Comments</h1>
+    {% if post.comment_set %}
+        {% for comment in post.comment_set.all %}
+            <p>By: {{ comment.firstname }}, {{ comment.lastname }}</p>
+            <p>{{ comment.text }}</p>
+            <p>{{ comment.date }}</p>
+            <hr>
+        {% endfor %}
+    {% else %}
+        <p>No comments.</p>
+    {% endif %}
+    <br><br>
+    <h3>Drop your comment:</h3>
+    <hr>
+
+    <form action="{% url 'post-detail' post.slug %}" method="post">
+        {% csrf_token %}
+        {{ comment_form }}
+        <input type="submit" value="Submit"/>
+{#    <input type="hidden" name="next" value="{{ next }}">#}
+    </form>
+
+{% endblock %}

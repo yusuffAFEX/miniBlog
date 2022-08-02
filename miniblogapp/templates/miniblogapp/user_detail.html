@@ -1,0 +1,27 @@
+{% extends "miniblogapp/base.html" %}
+{% block title %}<title>Author Detail</title>{% endblock %}
+{% block content %}
+    <h2>Blogger details:</h2><hr>
+    <p><strong>Firstname:</strong> {{ user_detail.first_name }}</p>
+    <p><strong>Lastname:</strong> {{ user_detail.last_name }}</p>
+    <p><strong>Username:</strong> {{ user_detail.username }}</p>
+    <p><strong>Email:</strong> {{ user_detail.email }}</p>
+    <p><strong>Total post:</strong> {{ user_detail.post_set.all.count }}</p>
+    <p><strong>Total comment:</strong> {{ comment }}</p>
+
+    <h4>Blogger Posts:</h4><hr>
+    <ul>
+    {% for user_blog in user_detail.post_set.all %}
+        <li><a href="{% url 'post-detail' user_blog.slug %}">{{ user_blog }}</a></li>
+    {% endfor %}
+    </ul>
+    <h4>Update Form</h4><hr>
+    <form action="{% url 'author-detail' user_detail.id %}" method="">
+        {% csrf_token %}
+        {{ update_form.as_p }}
+        {{ profile_update_form }}<br><br>
+        <input type="submit" value="Submit"/>
+{#    <input type="hidden" name="next" value="{{ next }}">#}
+    </form>
+
+{% endblock %}

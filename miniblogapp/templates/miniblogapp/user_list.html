@@ -1,0 +1,10 @@
+{% extends "miniblogapp/base.html" %}
+{% block title %}<title>Authors</title>{% endblock %}
+{% block content %}
+    <h1>All Authors</h1>
+    <ul>
+    {% for author in user_list %}
+    <li><a href="{% url 'author-detail' author.id %}">{{ author.first_name }}, {{ author.last_name }}</a></li>
+    {% endfor %}
+    </ul>
+{% endblock %}
