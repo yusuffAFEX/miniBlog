@@ -45,13 +45,18 @@ class AuthorDetailView(View):
 
     @method_decorator(login_required)
     def post(self, request, pk):
-        form = UpdateForm(request.POST, )
+        user = User.objects.get(pk=pk)
+        profile = Profile.objects.get(author_id=pk)
+        form = UpdateForm(request.POST, instance=user)
+        profile_update_form = ProfileUpdateForm(request.POST, instance=profile)
 
-        if form.is_valid():
+        if form.is_valid() and profile_update_form.is_valid():
             form.save()
+            profile_update_form.save()
             return HttpResponseRedirect(reverse('author-detail', args=[pk]))
         context = {
             "update_form": form,
+            "'profile_update_form": profile_update_form,
         }
 
         return render(request, "miniblogapp/user_detail.html", context=context)
