@@ -8,6 +8,12 @@
     <p><strong>Email:</strong> {{ user_detail.email }}</p>
     <p><strong>Total post:</strong> {{ user_detail.post_set.all.count }}</p>
     <p><strong>Total comment:</strong> {{ comment }}</p>
+    <p><h5>Passport:</h5></p>
+    {% if user_detail.profile.image %}
+    <img src="{{ user_detail.profile.image.url }}" alt="user-image">
+    {% else %}
+    <p>No Image</p>
+    {% endif %}
 
     <h4>Blogger Posts:</h4><hr>
     <ul>
@@ -16,7 +22,7 @@
     {% endfor %}
     </ul>
     <h4>Update Form</h4><hr>
-    <form action="{% url 'author-detail' user_detail.id %}" method="">
+    <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ update_form.as_p }}
         {{ profile_update_form }}<br><br>

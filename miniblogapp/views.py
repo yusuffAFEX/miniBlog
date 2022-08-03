@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User, AnonymousUser
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
@@ -28,13 +28,17 @@ class PostListView(generic.ListView):
 
 class AuthorDetailView(View):
 
+    def get_object(self, pk):
+        try:
+            return User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Http404
+
     def get(self, request, pk):
-        user_detail = get_object_or_404(User, pk=pk)
+        user_detail = self.get_object(pk)
         comment = Comment.objects.filter(post__author=self.kwargs['pk']).count()
-        user = User.objects.get(pk=pk)
-        profile = Profile.objects.get(author_id=pk)
-        update_form = UpdateForm(instance=user)
-        profile_update_form = ProfileUpdateForm(instance=profile)
+        update_form = UpdateForm(instance=user_detail)
+        profile_update_form = ProfileUpdateForm(instance=user_detail.profile)
         context = {
             'user_detail': user_detail,
             "comment": comment,
@@ -45,14 +49,15 @@ class AuthorDetailView(View):
 
     @method_decorator(login_required)
     def post(self, request, pk):
-        user = User.objects.get(pk=pk)
+        user = self.get_object(pk=pk)
         profile = Profile.objects.get(author_id=pk)
         form = UpdateForm(request.POST, instance=user)
-        profile_update_form = ProfileUpdateForm(request.POST, instance=profile)
+        profile_update_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
 
         if form.is_valid() and profile_update_form.is_valid():
             form.save()
             profile_update_form.save()
+
             return HttpResponseRedirect(reverse('author-detail', args=[pk]))
         context = {
             "update_form": form,
