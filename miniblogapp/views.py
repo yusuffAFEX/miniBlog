@@ -1,13 +1,18 @@
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import User, AnonymousUser
-from django.http import HttpResponseRedirect, Http404
-from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.models import User
+from django.contrib.auth.views import PasswordChangeView
+from django.core.serializers import serialize, json
+from django.http import HttpResponseRedirect, Http404, HttpResponse, JsonResponse
+from django.shortcuts import render, get_object_or_404
+from django.urls import reverse, reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views import generic, View
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import Post, Comment, Profile
-from .forms import CommentForm, UpdateForm, ProfileUpdateForm
+from .forms import CommentForm, UpdateForm, ProfileUpdateForm, PostForm
 
 
 # Create your views here.
@@ -18,62 +23,51 @@ class IndexView(generic.ListView):
     context_object_name = 'index_list'
 
     def get_queryset(self):
-        return Post.objects.all().order_by('-date_created')[:2]
+        return Post.post_objects.all().order_by('-date_created')[:2]
 
 
 class PostListView(generic.ListView):
     model = Post
-    queryset = Post.objects.all().order_by('-date_created')
+    queryset = Post.post_objects.all().order_by('-date_created')
 
 
-class AuthorDetailView(View):
+class AuthorDetailView(generic.DetailView):
+    model = User
+    template_name = 'miniblogapp/user_detail.html'
+    context_object_name = 'user_detail'
 
-    def get_object(self, pk):
-        try:
-            return User.objects.get(pk=pk)
-        except User.DoesNotExist:
-            return Http404
+    def get_context_data(self, **kwargs):
+        context = super(AuthorDetailView, self).get_context_data(**kwargs)
+        context['comment'] = Comment.objects.filter(post__author=self.kwargs['pk']).count()
 
-    def get(self, request, pk):
-        user_detail = self.get_object(pk)
-        comment = Comment.objects.filter(post__author=self.kwargs['pk']).count()
-        update_form = UpdateForm(instance=user_detail)
-        profile_update_form = ProfileUpdateForm(instance=user_detail.profile)
-        context = {
-            'user_detail': user_detail,
-            "comment": comment,
-            "update_form": update_form,
-            'profile_update_form': profile_update_form,
-        }
-        return render(request, 'miniblogapp/user_detail.html', context)
+        if self.request.user.id == self.kwargs['pk']:
+            context['update_form'] = UpdateForm(instance=context['user_detail'])
+            context['profile_update_form'] = ProfileUpdateForm(instance=context['user_detail'].profile)
+            context['all_author_post'] = Post.objects.filter(author_id=self.kwargs['pk'])
+        else:
+            context['all_author_post'] = Post.post_objects.filter(author_id=self.kwargs['pk'])
+            context['update_form'] = None
+            context['profile_update_form'] = None
+        return context
 
-    @method_decorator(login_required)
-    def post(self, request, pk):
-        user = self.get_object(pk=pk)
-        profile = Profile.objects.get(author_id=pk)
-        form = UpdateForm(request.POST, instance=user)
-        profile_update_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
 
-        if form.is_valid() and profile_update_form.is_valid():
-            form.save()
-            profile_update_form.save()
+@login_required
+def post_user_form(request, pk):
+    user = get_object_or_404(User, pk=pk)
+    form = UpdateForm(request.POST, instance=user)
+    profile_update_form = ProfileUpdateForm(request.POST, request.FILES, instance=user.profile)
 
-            return HttpResponseRedirect(reverse('author-detail', args=[pk]))
-        context = {
-            "update_form": form,
-            "'profile_update_form": profile_update_form,
-        }
+    if form.is_valid() and profile_update_form.is_valid():
+        form.save()
+        profile_update_form.save()
 
-        return render(request, "miniblogapp/user_detail.html", context=context)
+        return HttpResponseRedirect(reverse('author-detail', args=[pk]))
+    context = {
+        "update_form": form,
+        "'profile_update_form": profile_update_form,
+    }
 
-    # model = User
-    # template_name = 'miniblogapp/user_detail.html'
-    # context_object_name = 'user_detail'
-    #
-    # def get_context_data(self, **kwargs):
-    #     context = super(AuthorDetailView, self).get_context_data(**kwargs)
-    #     context['comment'] = Comment.objects.filter(post__author=self.kwargs['pk']).count()
-    #     return context
+    return render(request, "miniblogapp/user_detail.html", context=context)
 
 
 class AuthorListView(generic.ListView):
@@ -81,69 +75,82 @@ class AuthorListView(generic.ListView):
     template_name = 'miniblogapp/user_list.html'
 
 
-class PostDetailView(View):
-    def get(self, request, slug):
-        post = get_object_or_404(Post, slug=slug)
-        comment_form = CommentForm()
-        context = {
-            'post': post,
-            "comment_form": comment_form,
-            # "session_date": request.session.get("blog")
-        }
-        return render(request, 'miniblogapp/post_detail.html', context)
+class PostDetailView(generic.DetailView):
+    model = Post
+    context_object_name = 'post'
 
-    @method_decorator(login_required)
-    def post(self, request, slug):
+    def get_context_data(self, **kwargs):
+        context = super(PostDetailView, self).get_context_data(**kwargs)
+        context['comment_form'] = CommentForm()
+        context['current_user'] = self.request.user
+
+        if self.request.user.id != context['post'].author.id:
+            comment = Comment.comment_objects.filter(post__slug=self.kwargs.get('slug')).order_by('-date')
+        else:
+            comment = Comment.objects.filter(post__slug=self.kwargs.get('slug')).order_by('-date')
+
+        context['comment'] = comment
+        return context
+
+
+@login_required
+def post_comment_form(request, slug):
+    pst = Post.objects.get(slug=slug)
+
+    if request.method == 'POST':
         form = CommentForm(request.POST)
-        post = Post.objects.get(slug=slug)
 
-        # if self.request.user and not AnonymousUser:
         if form.is_valid():
             comment = form.save(commit=False)
-            comment.patch = post.id
-            comment.email = self.request.user.email
-            comment.firstname = self.request.user.first_name
-            comment.lastname = self.request.user.last_name
+            comment.post_id = pst.id
+            comment.email = request.user.email
+            comment.firstname = request.user.first_name
+            comment.lastname = request.user.last_name
             comment.save()
-            return HttpResponseRedirect(reverse('post-detail', args=[slug]))
-        # else:
-        #     blog = request.session.get("blog")
-        #     if blog is None:
-        #         blog = request.POST["text"]
-        #     request.session["blog"] = blog
-        #     return redirect('login')
+            data = serialize('json', [comment, ])
+            return JsonResponse({"data": data}, status=200)
+        return JsonResponse({"data": form.errors}, status=400)
 
-        context = {
-            "comment_form": form,
-        }
+        # context = {
+        #     "comment_form": form,
+        # }
+        # return render(request, "miniblogapp/post_detail.html", context=context)
 
-        return render(request, "miniblogapp/post_detail.html", context=context)
 
-    # def get_queryset(self):
-    #     return Comment.objects.all().order_by('-date')
+class ChangePasswordView(PasswordChangeView):
+    template_name = 'miniblogapp/password_change_form.html'
+    success_url = reverse_lazy('login')
 
-# class post_detail(request, slug):
-#     """View function for renewing a specific BookInstance by librarian."""
-#     post = get_object_or_404(Post, slug=slug)
-#
-#     # If this is a POST request then process the Form data
-#     if request.method == 'POST':
-#         form = CommentForm(request.POST)
-#
-#         if form.is_valid():
-#             form.save()
-#
-#             # redirect to a new URL:
-#             return HttpResponseRedirect(reverse('post-detail', args=(post.slug,)))
-#
-#     # If this is a GET (or any other method) create the default form.
-#     else:
-#         form = CommentForm(request.POST)
-#         post = post
-#
-#     context = {
-#         'form': form,
-#         'post': post
-#     }
+    def form_valid(self, form):
+        self.request.session.flush()
+        logout(self.request)
+        return super(ChangePasswordView, self).form_valid(form)
 
-# return render(request, 'miniblogapp/post_detail.html', context)
+
+class UpdatePost(UserPassesTestMixin, generic.UpdateView):
+    model = Post
+    form_class = PostForm
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super(UpdatePost, self).form_valid(form)
+
+    def test_func(self):
+        post = self.get_object()
+        if self.request.user == post.author:
+            return True
+        return False
+
+
+class HideUnhiddenComment(View):
+    def post(self, request, slug, pk):
+        comment = Comment.objects.get(id=pk)
+
+        # if comment.is_hidden:
+        #     comment.is_hidden = False
+        # elif not comment.is_hidden:
+        #     comment.is_hidden = True
+        comment.is_hidden = not comment.is_hidden
+
+        comment.save()
+        return HttpResponseRedirect(reverse('post-detail', args=[slug]))

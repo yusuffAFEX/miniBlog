@@ -10,6 +10,11 @@ from django.urls import reverse
 from PIL import Image
 
 
+class ActivePost(models.Manager):
+    def get_queryset(self):
+        return super(ActivePost, self).get_queryset().filter(is_deleted=False)
+
+
 class Post(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -17,12 +22,21 @@ class Post(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField()
     image = models.ImageField(null=True, blank=True, upload_to='post')
+    is_deleted = models.BooleanField(default=False)
+
+    objects = models.Manager()
+    post_objects = ActivePost()
 
     def __str__(self):
         return self.title
 
     def get_absolute_url(self):
         return reverse('post-detail', args=[str(self.slug)])
+
+
+class ActiveComment(models.Manager):
+    def get_queryset(self):
+        return super(ActiveComment, self).get_queryset().filter(is_hidden=False)
 
 
 class Comment(models.Model):
@@ -32,6 +46,10 @@ class Comment(models.Model):
     firstname = models.CharField(max_length=200, null=True, editable=False)
     lastname = models.CharField(max_length=200, null=True, editable=False)
     date = models.DateTimeField(auto_now_add=True)
+    is_hidden = models.BooleanField(default=False)
+
+    objects = models.Manager()
+    comment_objects = ActiveComment()
 
     def __str__(self):
         return f'{self.firstname}, {self.lastname}'
@@ -48,19 +66,16 @@ class Profile(models.Model):
         super(Profile, self).save()
         if self.image:
             image = Image.open(self.image.path)
-            if image.height > 300 and image.width >300:
+            if image.height > 300 and image.width > 300:
                 size = (200, 200)
                 image.thumbnail(size)
                 image.save(self.image.path)
-
-
 
 
 @receiver(post_save, sender=User)
 def create_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(author=instance)
-
 
 # @receiver(post_save, sender=User)
 # def save_profile(sender, instance, **kwargs):

@@ -3,30 +3,109 @@
 {% block content %}
     <h1>Title: {{ post.title }}</h1>
     <p>{{ post.date_created }}</p>
-     <img src="{{ post.image.url }}" alt="post-image" >
+    {% if post.image %}
+        <img src="{{ post.image.url }}" alt="post-image">
+    {% endif %}
     <p><h5>Author:</h5> <a href="{% url 'author-detail' post.author.id %}">{{ post.author.get_full_name }}</a></p>
     <p><h3>Content:</h3> {{ post.content|linebreaks }} </p>
+    <p>
+        {% if post.author == current_user %}
+            <a href="{% url 'post_update' post.slug %}">Update post</a>
+        {% endif %}
+    </p>
     <hr>
     <h1>Comments</h1>
-    {% if post.comment_set %}
-        {% for comment in post.comment_set.all %}
-            <p>By: {{ comment.firstname }}, {{ comment.lastname }}</p>
-            <p>{{ comment.text }}</p>
-            <p>{{ comment.date }}</p>
-            <hr>
-        {% endfor %}
-    {% else %}
-        <p>No comments.</p>
-    {% endif %}
+    <div class="done">
+        {% if comment %}
+            {% for cmt in comment %}
+                <p>By: {{ cmt.firstname }}, {{ cmt.lastname }}</p>
+                <p>{{ cmt.text }}</p>
+                <p>{{ cmt.date }}</p>
+                {% if current_user == post.author %}
+                    <form action="{% url 'hide-comment' post.slug cmt.id %}" method="post">
+                        {% csrf_token %}
+                        <input type="submit" value="{% if cmt.is_hidden %} Unhidden {% else %} Hide {% endif %}">
+                    </form>{% endif %}
+                <hr>
+            {% endfor %}
+        {% else %}
+            <p>No comments.</p>
+        {% endif %}
+    </div>
     <br><br>
     <h3>Drop your comment:</h3>
     <hr>
 
-    <form action="{% url 'post-detail' post.slug %}" method="post">
+    <form id="c-form" method="post">
         {% csrf_token %}
-        {{ comment_form }}
+        {{ comment_form.as_p }}
         <input type="submit" value="Submit"/>
-{#    <input type="hidden" name="next" value="{{ next }}">#}
+        {#        <input type="hidden" name="next" value="/blog/">#}
     </form>
 
 {% endblock %}
+
+
+
+
+{% block javascript %}
+    <script>
+
+        $("#c-form").on("submit", function (e) {
+            e.preventDefault();
+            var dataString = $(this).serialize();
+
+            $.ajax({
+                type: "POST",
+                url: "{% url 'post-comment' post.slug %}",
+                data: dataString,
+                success: function (response) {
+                    $("#c-form")[0].reset()
+
+                    var data = JSON.parse(response["data"]);
+                    var fields = data[0]["fields"];
+                    const this_url = `/blog/{{ post.slug }}/${data[0]["pk"]}`;
+
+                    let is_hidden = `${data[0]["fields"]["is_hidden"]}`
+
+                    let button_value = ''
+                    if (is_hidden == true) {
+                        button_value = "Unhidden"
+                    }
+                    else {
+                        button_value = "Hide"
+                    }
+                    let form = `
+                        <form action=${this_url} method="post">
+                        {% csrf_token %}
+                        <input type="submit" value="${button_value}">
+                        </form>
+                    `
+
+                    $('.done').prepend(
+                        `
+                        <p>By: ${fields["firstname"]}, ${fields["lastname"]}</p>
+                        <p>${fields["text"]}</p>
+                        <p>${fields["date"]}</p>
+                        {% if current_user == post.author %}
+                        ${form}
+                        {% endif %}
+                        <hr>
+
+                         `
+                    )
+
+
+
+
+                }
+                });
+
+
+                });
+
+
+
+    </script>
+{% endblock %}
+

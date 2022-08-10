@@ -10,14 +10,15 @@ class CommentInline(admin.TabularInline):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ['title', 'date_created', 'author']
+    list_display = ['title', 'date_created', 'author', 'is_deleted']
     list_display_links = ('title',)
     prepopulated_fields = {'slug': ('title',),}
 
     inlines = [CommentInline]
 
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ['firstname', 'email', 'is_hidden']
 
 
-
-admin.site.register(Comment)
+admin.site.register(Comment, CommentAdmin)
 admin.site.register(Profile)

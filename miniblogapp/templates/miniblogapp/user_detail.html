@@ -1,7 +1,8 @@
 {% extends "miniblogapp/base.html" %}
 {% block title %}<title>Author Detail</title>{% endblock %}
 {% block content %}
-    <h2>Blogger details:</h2><hr>
+    <h2>Blogger details:</h2>
+    <hr>
     <p><strong>Firstname:</strong> {{ user_detail.first_name }}</p>
     <p><strong>Lastname:</strong> {{ user_detail.last_name }}</p>
     <p><strong>Username:</strong> {{ user_detail.username }}</p>
@@ -10,24 +11,33 @@
     <p><strong>Total comment:</strong> {{ comment }}</p>
     <p><h5>Passport:</h5></p>
     {% if user_detail.profile.image %}
-    <img src="{{ user_detail.profile.image.url }}" alt="user-image">
+        <img src="{{ user_detail.profile.image.url }}" alt="user-image">
     {% else %}
-    <p>No Image</p>
+        <p>No Image</p>
     {% endif %}
 
-    <h4>Blogger Posts:</h4><hr>
-    <ul>
-    {% for user_blog in user_detail.post_set.all %}
-        <li><a href="{% url 'post-detail' user_blog.slug %}">{{ user_blog }}</a></li>
-    {% endfor %}
-    </ul>
-    <h4>Update Form</h4><hr>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ update_form.as_p }}
-        {{ profile_update_form }}<br><br>
-        <input type="submit" value="Submit"/>
-{#    <input type="hidden" name="next" value="{{ next }}">#}
-    </form>
-
+    <h4>Blogger Posts:</h4>
+    <hr>
+    {% if all_author_post %}
+        <ul>
+            {% for user_blog in all_author_post %}
+                <span><li><a href="{% url 'post-detail' user_blog.slug %}">{{ user_blog }}</a></li></span>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No post</p>
+    {% endif %}
+    {% if update_form and profile_update_form %}
+        <h4>Update Form</h4>
+        <hr>
+        <form method="post" action="{% url 'edit-author' user_detail.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ update_form.as_p }}
+            {{ profile_update_form }}<br><br>
+            <input type="submit" value="Submit"/>
+            {#    <input type="hidden" name="next" value="{{ next }}">#}
+        </form>
+        {% else %}
+        <p></p>
+    {% endif %}
 {% endblock %}
